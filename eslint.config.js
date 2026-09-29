@@ -26,4 +26,19 @@ export default defineConfig([
       'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
     },
   },
+  {
+    // Tests and build scripts run under Node, not the browser.
+    files: ['tests/**/*.js', 'scripts/**/*.mjs', '*.config.js'],
+    languageOptions: {
+      globals: { ...globals.node },
+    },
+  },
+  {
+    // llmHelper reads process.env as a fallback so the module stays importable
+    // in Node (tests) as well as in Vite, where import.meta.env is inlined.
+    files: ['src/utils/llmHelper.js'],
+    languageOptions: {
+      globals: { ...globals.browser, ...globals.node },
+    },
+  },
 ])

@@ -1,10 +1,21 @@
 import { useState, useEffect } from 'react'
-import ReactMarkdown from 'react-markdown'
+import { PRIORITY_LEVELS } from '../utils/triageConfig'
+
+const LEVEL_BY_ID = Object.fromEntries(PRIORITY_LEVELS.map((tier) => [tier.level, tier]))
+
+// Records written by older versions have no `level`. Fall back to the legacy
+// High/Medium/Low labels so a saved history never renders as blank.
+function tierFor(item) {
+  if (item.level) return LEVEL_BY_ID[item.level]
+  if (item.urgency === 'High') return { level: 'P1', badgeClass: 'bg-orange-500 text-white' }
+  if (item.urgency === 'Low') return { level: 'P3', badgeClass: 'bg-green-500 text-white' }
+  return { level: 'P2', badgeClass: 'bg-yellow-400 text-yellow-900' }
+}
 
 function HistoryPage() {
   const [history, setHistory] = useState([])
   const [filter, setFilter] = useState('all')
-  const [expandedIndex, setExpandedIndex] = useState(null)
+  const [expandedId, setExpandedId] = useState(null)
 
   useEffect(() => {
     loadHistory()
@@ -22,15 +33,22 @@ function HistoryPage() {
     }
   }
 
-  const sortedHistory = [...history].sort((a, b) => 
-    a.message.localeCompare(b.message)
+  // Newest first - support agents want the most recent queue state, not
+  // alphabetical order (the previous sort was by message text).
+  const sortedHistory = [...history].sort(
+    (a, b) => new Date(b.timestamp) - new Date(a.timestamp)
   )
-  
-  const filteredHistory = filter === 'all' 
-    ? sortedHistory 
+
+  const filteredHistory = filter === 'all'
+    ? sortedHistory
     : sortedHistory.filter(item => item.category === filter)
 
   const categories = [...new Set(history.map(item => item.category))]
+
+  const categoryLabel = (item) =>
+    item.categoryLabel ||
+    item.category?.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase()) ||
+    'Unknown'
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
@@ -99,14 +117,17 @@ function HistoryPage() {
         )}
 
         <div className="space-y-4">
-          {filteredHistory.map((item, index) => (
+          {filteredHistory.map((item) => {
+            const key = item.timestamp
+            const tier = tierFor(item)
+            return (
             <div
-              key={index}
+              key={key}
               className="bg-white rounded-lg shadow-md overflow-hidden"
             >
               <div
                 className="p-4 cursor-pointer hover:bg-gray-50"
-                onClick={() => setExpandedIndex(expandedIndex === index ? null : index)}
+                onClick={() => setExpandedId(expandedId === key ? null : key)}
               >
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
@@ -116,26 +137,32 @@ function HistoryPage() {
                     <div className="text-gray-800 font-medium mb-2">
                       "{item.message.substring(0, 100)}{item.message.length > 100 ? '...' : ''}"
                     </div>
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-2 flex-wrap">
                       <span className="text-xs bg-blue-100 text-blue-800 px-3 py-1 rounded-full font-semibold">
-                        {item.category}
+                        {categoryLabel(item)}
                       </span>
-                      <span className={`text-xs px-3 py-1 rounded-full font-semibold ${
-                        item.urgency === 'High' ? 'bg-red-200 text-red-900' :
-                        item.urgency === 'Medium' ? 'bg-yellow-200 text-yellow-900' :
-                        'bg-green-200 text-green-900'
-                      }`}>
-                        {item.urgency} Urgency
+                      <span className={`text-xs px-3 py-1 rounded-full font-semibold ${tier.badgeClass}`}>
+                        {tier.level} &middot; {item.urgency}
                       </span>
+                      {item.queue && (
+                        <span className="text-xs bg-slate-100 text-slate-700 px-3 py-1 rounded-full font-medium">
+                          {item.queueIcon} {item.queue}
+                        </span>
+                      )}
+                      {item.escalate && (
+                        <span className="text-xs bg-red-100 text-red-800 px-3 py-1 rounded-full font-semibold">
+                          Escalate
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div className="text-gray-400 ml-4">
-                    {expandedIndex === index ? '▲' : '▼'}
+                    {expandedId === key ? '▲' : '▼'}
                   </div>
                 </div>
               </div>
 
-              {expandedIndex === index && (
+              {expandedId === key && (
                 <div className="border-t border-gray-200 p-4 bg-gray-50">
                   <div className="space-y-3">
                     <div>
@@ -144,6 +171,12 @@ function HistoryPage() {
                         {item.message}
                       </div>
                     </div>
+                    {item.priorityExplanation && (
+                      <div>
+                        <div className="text-xs font-semibold text-gray-600 mb-1">Why this priority</div>
+                        <div className="text-sm text-gray-700">{item.priorityExplanation}</div>
+                      </div>
+                    )}
                     <div>
                       <div className="text-xs font-semibold text-gray-600 mb-1">Recommended Action</div>
                       <div className="text-sm text-gray-800 bg-purple-50 p-3 rounded border border-purple-200">
@@ -151,20 +184,17 @@ function HistoryPage() {
                       </div>
                     </div>
                     <div>
-                      <div className="text-xs font-semibold text-gray-600 mb-1">AI Reasoning</div>
-                      <div className="bg-white p-3 rounded border border-gray-200">
-                        <div className="prose prose-sm max-w-none text-gray-700">
-                          <ReactMarkdown>
-                            {item.reasoning}
-                          </ReactMarkdown>
-                        </div>
+                      <div className="text-xs font-semibold text-gray-600 mb-1">Reasoning</div>
+                      <div className="text-sm text-gray-700 bg-white p-3 rounded border border-gray-200">
+                        {item.reasoning}
                       </div>
                     </div>
                   </div>
                 </div>
               )}
             </div>
-          ))}
+            )
+          })}
         </div>
       </div>
     </div>

@@ -76,9 +76,9 @@ function HomePage() {
           <button
             onClick={() => {
               const examples = [
-                "Our payment failed and we can't access our account",
-                "The dashboard is loading very slowly",
-                "Can you add a dark mode feature?"
+                'Our production server is down and nobody can log in',
+                'I have been charged twice this month and nobody has replied',
+                'Could you add a dark mode feature?'
               ]
               const random = examples[Math.floor(Math.random() * examples.length)]
               localStorage.setItem('exampleMessage', random)
@@ -107,17 +107,23 @@ function HomePage() {
                       <div className="text-gray-700 truncate">
                         "{item.message.substring(0, 60)}..."
                       </div>
-                      <div className="flex items-center space-x-2 mt-1">
+                      <div className="flex items-center space-x-2 mt-1 flex-wrap">
                         <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                          {item.category}
+                          {item.categoryLabel || item.category}
                         </span>
-                        <span className={`text-xs px-2 py-1 rounded ${
-                          item.urgency === 'High' ? 'bg-red-100 text-red-800' :
-                          item.urgency === 'Medium' ? 'bg-yellow-100 text-yellow-800' :
-                          'bg-green-100 text-green-800'
+                        <span className={`text-xs px-2 py-1 rounded font-semibold ${
+                          item.level === 'P0' ? 'bg-red-600 text-white' :
+                          item.level === 'P1' ? 'bg-orange-500 text-white' :
+                          item.level === 'P2' ? 'bg-yellow-400 text-yellow-900' :
+                          'bg-green-500 text-white'
                         }`}>
-                          {item.urgency}
+                          {item.level || item.urgency}
                         </span>
+                        {item.queue && (
+                          <span className="text-xs bg-slate-100 text-slate-700 px-2 py-1 rounded">
+                            {item.queue}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
